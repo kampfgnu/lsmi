@@ -1,5 +1,5 @@
 /* 
- * Copyright (C) 2007 Jonathan Moore Liles
+ * Copyright (C) 2006 Jonathan Moore Liles
  * 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by the
@@ -16,83 +16,81 @@
  * Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-/* -- lsmi-keyhack.c
+/* lsmi-keyhack.c
  *
- * title	Linux pSeudo Midi Input
- * date		March, 2007
- * author	Jonathan Moore Liles
+ * Linux Pseudo MIDI Input -- Keyboard Hack
+ * March, 2007
  *
- * --
+ * This driver is for a hacked AT / PS/2 keyboard functioning as a MIDI
+ * controller.
  *
- * : Keyboard Hack
+ * It is somewhat specific to my own hardware, but, since it relies a learning
+ * capability rather than a fixed keymap, it should be equally useful for
+ * others wishing to build their own fake MIDI keyboard. Of course, such a
+ * keyboard will not be velocity sensitive, but this project is a good way to
+ * salvage both an old QWERTY keyboard and a manual from a decrepit analog
+ * organ or cheap PCM noise-maker.
  *
- *   This driver is for a hacked AT / PS/2 keyboard functioning as a MIDI
- *   controller.
+ * The driver supports up to 88 musical keys, three footswitches, and several
+ * additional buttons for control and data entry. It has the rather unfortunate
+ * side-effect of rendering the console useless, unless, of course you have
+ * another (USB) keyboard to type on. I tried to get the interface working with
+ * the kernel's parkbd driver (AT keyboard over parallel port), but could never
+ * get a key through--and on top of that, the maintainer won't return my
+ * emails.
  *
- *   It is somewhat specific to my own hardware, but, since it relies a
- *   learning capability rather than a fixed keymap, it should be equally
- *   useful for others wishing to build their own fake MIDI keyboard. Of
- *   course, such a keyboard will not be velocity sensitive, but this project
- *   is a good way to salvage both an old QWERTY keyboard and a manual from a
- *   decrepit analog organ or cheap PCM noise-maker.
  *
- *   The driver supports up to 88 musical keys, three footswitches, and several
- *   additional buttons for control and data entry. It has the rather
- *   unfortunate side-effect of rendering the console useless, unless, of
- *   course you have another (USB) keyboard to type on. I tried to get the
- *   interface working with the kernel's parkbd driver (AT keyboard over
- *   parallel port), but could never get a key through--and on top of that, the
- *   maintainer won't return my emails.
- *
- * :: The Hardware
+ * 
+ * The Hardware:
  * 		
- *   To work in a musical setting, your keyboard controller must come from an
- *   AT / PS/2 keyboard designed before the invention of 'blocking'.  Such a
- *   keyboard will have real, mechanical switches (no membrane) and one silicon
- *   diode for each switch--enabling any number and combination of simultaneous
- *   keypresses. More modern keyboards omit the diodes (to save a nickle) and
- *   implement 'blocking' in the microcontroller to hide the deed (without the
- *   diodes and without the blocking logic, phantom keypresses would result
- *   from certain combinations of keys).
+ * 	To work in a musical setting, your keyboard controller must come from an AT
+ * 	/ PS/2 keyboard designed before the invention of 'blocking'.  Such a
+ * 	keyboard will have real, mechanical switches (no membrane) and one silicon
+ * 	diode for each switch--enabling any number and combination of simultaneous
+ * 	keypresses. More modern keyboards omit the diodes (to save a nickle) and
+ * 	implement 'blocking' in the microcontroller to hide the deed (without the
+ * 	diodes and without the blocking logic, phantom keypresses would result from
+ * 	certain combinations of keys).
  *
- *   Once you've located such a keyboard you'll have to remove the controller
- *   board and all the switching diodes; then wire the controller's columns and
- *   rows up to your musical keyboard, using a diode (properly oriented) for
- *   each switch. It doesn't matter which keys you wire where, as the driver
- *   learning process will figure it out for you. If, during the learning
- *   proceedure, you find a key behaves strangely, rewire it and avoid using
- *   that particular row+column combination again (as you've probably stumbled
- *   upon the dreaded pause/break key, which has a rather unmanagable
- *   scancode).  If you wish, you may also wire up three footswitches and the
- *   18 button control pad.
- *
- *
- *   My control pad looks like the following:
- * 
- * 
- * >                      (LEDs)
- * > EXIT       MODE    D1  D2  D3
- * >
- * > Octave
- * > <-     ->          7   8   9
- * >
- * >
- * > Channel            4   5   6
- * > <-     ->
- * >
- * > Patch              1   2   3
- * > <-     ->              
- * >                        0
+ * 	Once you've located such a keyboard you'll have to remove the controller
+ * 	board and all the switching diodes; then wire the controller's columns and
+ * 	rows up to your musical keyboard, using a diode (properly oriented) for
+ * 	each switch. It doesn't matter which keys you wire where, as the driver
+ * 	learning process will figure it out for you. If, during the learning
+ * 	proceedure, you find a key behaves strangely, rewire it and avoid using
+ * 	that particular row+column combination again (as you've probably stumbled
+ * 	upon the dreaded pause/break key, which has a rather unmanagable scancode).
+ * 	If you wish, you may also wire up three footswitches and the 18 button
+ * 	control pad.
  *
  *
- *   If I had it to build over again? I'd probably have added a row of
- *   fixed-channel, fixed-octave buttons above the keys for addressing
- *   Freewheeling loops. Implementing this in software is up to you.
+ *	My control pad looks like the following:
  *
- * :: The Software
  *
- *   Don't forget that you can use aseqnet to send the realtime MIDI data 
- *   over the network to another machine! (that's what I do)
+ *						  (LEDs)
+ *	EXIT		MODE	D1	D2	D3
+ *
+ * 	  Octave
+ *	<-		->			7	8	9
+ *
+ *
+ *    Channel			4	5	6
+ *	<-		->
+ *
+ * 	  Patch				1	2	3
+ * 	<-		->				
+ *							0
+ *
+ *
+ *
+ * If I had it to build over again? I'd probably have added a row of
+ * fixed-channel, fixed-octave buttons above the keys for addressing
+ * Freewheeling loops. Implementing this in software is up to you.
+ *
+ * ...
+ *
+ * Don't forget that you can use aseqnet to send the realtime MIDI data 
+ * over the network to another machine! (that's what I do)
  *
  */
 
@@ -154,12 +152,13 @@ snd_seq_t *seq = NULL;
 int port;
 struct timeval timeout;
 
-char *sub_name = NULL;					/* subscriber */
+char *sub_name = NULL;								/* subscriber */
 
 char defaultdevice[] = "/dev/input/event0";
 char *device = defaultdevice;
 
-enum control_keys {
+enum control_keys
+{
 	CKEY_EXIT = 1,
 	CKEY_MODE,
 	CKEY_OCTAVE_DOWN,
@@ -203,8 +202,8 @@ open_database ( char *filename )
 
 	if ( -1 == ( dbfd = open( filename, O_RDONLY ) ) )
 		return -1;
-
-	read( dbfd, map, sizeof( map ) );
+	
+	read( dbfd, map, sizeof ( map ) );
 
 	close( dbfd );
 
@@ -216,10 +215,10 @@ close_database ( char *filename )
 {
 	int dbfd;
 
-	if ( -1 == ( dbfd = creat( filename, 0666 ) ) )
+	if ( -1 == ( dbfd = creat( filename, 0666 ) ) )	
 		return -1;
-
-	write( dbfd, map, sizeof( map ) );
+	
+	write( dbfd, map, sizeof ( map ) );
 
 	close( dbfd );
 
@@ -230,7 +229,7 @@ close_database ( char *filename )
  * Prepare to die gracefully
  */
 void
-clean_up ( void )
+clean_up( void )
 {
 	/* release the keyboard */
 	ioctl( fd, EVIOCGRAB, 0 );
@@ -244,11 +243,11 @@ clean_up ( void )
  * Signal handler
  */
 void
-die ( int x )
+die( int x )
 {
-	printf( "caught signal %d, cleaning up...\n", x );
-	clean_up();
-	exit( 1 );
+  printf( "caught signal %d, cleaning up...\n", x );
+  clean_up();
+  exit( 1 );
 }
 
 /** 
@@ -258,14 +257,14 @@ void
 usage ( void )
 {
 	fprintf( stderr, "Usage: lsmi-keyhack [options]\n"
-			 "Options:\n\n"
-			 " -h | --help                   Show this message\n"
-			 " -d | --device specialfile     Event device to use (instead of event0)\n"
-			 " -v | --verbose                Be verbose (show note events)\n"
-			 " -c | --channel n              Initial MIDI channel\n"
-			 " -p | --port client:port       Connect to ALSA Sequencer client on startup\n"
-			 " -k | --keydata file			Name file to read/write key mappings (instead of ~/.keydb)\n"
-			 "\n" );
+	"Options:\n\n"
+		" -h | --help                   Show this message\n"
+		" -d | --device specialfile     Event device to use (instead of event0)\n"
+		" -v | --verbose                Be verbose (show note events)\n"
+		" -c | --channel n              Initial MIDI channel\n"
+		" -p | --port client:port       Connect to ALSA Sequencer client on startup\n"					
+		" -k | --keydata file			Name file to read/write key mappings (instead of ~/.keydb)\n"
+	"\n" );
 }
 
 /** 
@@ -275,26 +274,27 @@ void
 get_args ( int argc, char **argv )
 {
 	const char *short_opts = "hp:c:d:k:v";
-	const struct option long_opts[] = {
-		{"help", no_argument, NULL, 'h'},
-		{"port", required_argument, NULL, 'p'},
-		{"channel", required_argument, NULL, 'c'},
-		{"device", required_argument, NULL, 'd'},
-		{"keydata", required_argument, NULL, 'k'},
-		{"verbose", no_argument, NULL, 'v'},
-		{NULL, 0, NULL, 0}
+	const struct option long_opts[] =
+	{
+		{ "help", no_argument, NULL, 'h' },
+		{ "port", required_argument, NULL, 'p' },
+		{ "channel", required_argument, NULL, 'c' },
+		{ "device", required_argument, NULL, 'd' },
+		{ "keydata", required_argument, NULL, 'k' },
+		{ "verbose", no_argument, NULL, 'v' },
+		{ NULL, 0, NULL, 0 }
 	};
 
 	int c;
 
-	while ( ( c = getopt_long( argc, argv, short_opts, long_opts, NULL ) )
+	while ( ( c = getopt_long( argc, argv, short_opts, long_opts, NULL ))
 			!= -1 )
 	{
-		switch ( c )
+		switch (c)
 		{
 			case 'h':
 				fprintf( stderr, "Help\n" );
-				exit( 0 );
+				exit(0);
 				break;
 			case 'p':
 				sub_name = optarg;
@@ -308,8 +308,7 @@ get_args ( int argc, char **argv )
 					channel = channel - 1;
 				else
 				{
-					fprintf( stderr,
-							 "Channel number must be bewteen 1 and 16!\n" );
+					fprintf( stderr, "Channel number must be bewteen 1 and 16!\n" );
 					exit( 1 );
 				}
 				break;
@@ -334,14 +333,15 @@ get_keypress ( int *state )
 {
 	struct input_event iev;
 	int keyi;
-
+	
 	for ( ;; )
 	{
 		read( fd, &iev, sizeof( iev ) );
 
-		if ( iev.type != EV_KEY || iev.value == 2 )
+		if ( iev.type != EV_KEY ||
+			 iev.value == 2 )
 			continue;
-
+	
 		*state = iev.value == 0 ? UP : DOWN;
 		keyi = iev.code;
 
@@ -354,17 +354,15 @@ get_keypress ( int *state )
  * index
  */
 int
-get_key ( void )
+get_key( void )
 {
 	int key;
 	int state;
 
 	/* Ignore UPs from previous keypresses */
-	do
-	{
+	do {
 		key = get_keypress( &state );
-	}
-	while ( state != DOWN );
+	} while ( state != DOWN );
 
 	/* Ignore other DOWNs while waiting for our key's UP */
 	while ( get_keypress( &state ) != key );
@@ -376,12 +374,11 @@ get_key ( void )
  * Prompt for learning given control key
  */
 void
-learn_key ( int control )
+learn_key( int control )
 {
 	int keyi;
 
-	printf( "Press the key that shall be known as %s.\n",
-			key_names[control] );
+	printf( "Press the key that shall be known as %s.\n", key_names[control] );
 
 	keyi = get_key();
 
@@ -404,7 +401,7 @@ analyze_map ( int *keys, int *mc_offset )
 	{
 		if ( map[i].ev_type == SND_SEQ_EVENT_NOTE )
 		{
-			( *keys )++;
+			(*keys)++;
 			if ( map[i].number < *mc_offset )
 				*mc_offset = map[i].number;
 		}
@@ -417,7 +414,7 @@ analyze_map ( int *keys, int *mc_offset )
  * set LEDs to indicate program mode
  */
 void
-update_leds ( void )
+update_leds( void )
 {
 	struct input_event iev;
 	int i;
@@ -425,7 +422,7 @@ update_leds ( void )
 	for ( i = 0; i < 3; i++ )
 	{
 		iev.type = EV_LED;
-
+		
 		iev.code = i;
 
 		if ( i == prog_mode )
@@ -442,16 +439,15 @@ update_leds ( void )
 void
 init_keyboard ( void )
 {
-	uint8_t evt[EV_MAX / 8 + 1];
+  	uint8_t evt[EV_MAX / 8 + 1];
 
 	/* get capabilities */
-	ioctl( fd, EVIOCGBIT( 0, sizeof( evt ) ), evt );
+	ioctl( fd, EVIOCGBIT( 0, sizeof(evt)), evt );
 
-	if ( !( testbit( EV_KEY, evt ) && testbit( EV_MSC, evt ) ) )
+	if ( ! ( testbit( EV_KEY, evt ) &&
+			 testbit( EV_MSC, evt ) ) )
 	{
-		fprintf( stderr,
-				 "'%s' doesn't seem to be a keyboard! look in /proc/bus/input/devices to find the name of your keyboard's event device\n",
-				 device );
+		fprintf( stderr, "'%s' doesn't seem to be a keyboard! look in /proc/bus/input/devices to find the name of your keyboard's event device\n", device );
 		exit( 1 );
 	}
 
@@ -459,7 +455,7 @@ init_keyboard ( void )
 	if ( ioctl( fd, EVIOCGRAB, 1 ) )
 	{
 		perror( "EVIOCGRAB" );
-		exit( 1 );
+		exit(1);
 	}
 }
 
@@ -482,38 +478,37 @@ learn_mode ( void )
 
 	map[keyi].control = CKEY_EXIT;
 
-	printf
-		( "Press each piano key in succession, beginning with the left-most. When you run out of keys, press the first one again.\n" );
-
+	printf( "Press each piano key in succession, beginning with the left-most. When you run out of keys, press the first one again.\n" );
+	
 	for ( ;; )
 	{
 		keyi = get_key();
 
 #if 0
-		ioctl( fd, KDMKTONE, ( 60 << 16 ) + 0x637 - ( learn_note * 10 ) );
+		ioctl( fd, KDMKTONE, (60<<16) + 0x637 - ( learn_note * 10 ) );
 #endif
 
 		printf( "%i ", learn_note );
-		fflush( stdout );
+		fflush(stdout);
 
 		if ( keyi == learn_firstkey )
 			break;
-		else if ( !learn_firstkey )
+		else
+		if ( ! learn_firstkey )
 			learn_firstkey = keyi;
-
+		
 		map[keyi].control = 0;
 		map[keyi].ev_type = SND_SEQ_EVENT_NOTE;
-		map[keyi].number = learn_note++;
+		map[keyi].number  = learn_note++;
 
 		learn_keys++;
 	}
 
-	printf( "\n%i keys encoded.\nNow press the key that shall be middle C.\n",
-			learn_keys );
+	printf( "\n%i keys encoded.\nNow press the key that shall be middle C.\n", learn_keys );
 
 	keyi = get_key();
 
-	key_offset = map[keyi].number;
+	key_offset =  map[keyi].number;
 
 	for ( i = 0; i < elementsof( map ); i++ )
 	{
@@ -523,36 +518,33 @@ learn_mode ( void )
 
 	if ( map[keyi].number + ( 12 * octave ) != 60 )
 	{
-		fprintf( stderr, "Error in key logic! ( middle C == %i )\n",
-				 map[keyi].number + ( 12 * octave ) );
+		fprintf( stderr, "Error in key logic! ( middle C == %i )\n", map[keyi].number + (12 * octave ) );
 	}
 
-	printf
-		( "Basic configuration complete. Press EXIT if you'd like to stop learning now, or any other key if you'd like to continue and configure the auxilliary input methods.\n" );
+	printf( "Basic configuration complete. Press EXIT if you'd like to stop learning now, or any other key if you'd like to continue and configure the auxilliary input methods.\n" );
 
 	keyi = get_key();
 
 	if ( map[keyi].control == CKEY_EXIT )
 		return;
 
-	printf
-		( "If your device has 18 key control pad, and you would like to program it now, press any key. To skip this step (and move on to pedals/footswitches), press EXIT.\n" );
+	printf( "If your device has 18 key control pad, and you would like to program it now, press any key. To skip this step (and move on to pedals/footswitches), press EXIT.\n");
 
 	keyi = get_key();
 
 	if ( map[keyi].control != CKEY_EXIT )
 	{
 		printf( "Press buttons 0 through 9 in ascending numerical order.\n" );
-
+		
 		for ( i = 0; i < 10; i++ )
 		{
 			keyi = get_key();
 
 			printf( "%i encoded. ", i );
-			fflush( stdout );
+			fflush(stdout);
 
 			map[keyi].control = CKEY_NUMERIC;
-			map[keyi].number = i;
+			map[keyi].number  = i;
 		}
 
 		for ( i = CKEY_MIN + 1; i <= CKEY_MAX; i++ )
@@ -592,7 +584,7 @@ main ( int argc, char **argv )
 {
 	int keys = 0;
 	int mc_offset = 0;
-
+	
 	snd_seq_event_t ev;
 
 	int patch = 0;
@@ -624,11 +616,10 @@ main ( int argc, char **argv )
 
 		if ( snd_seq_parse_address( seq, &addr, sub_name ) < 0 )
 			fprintf( stderr, "Couldn't parse address '%s'", sub_name );
-		else if ( snd_seq_connect_to( seq, port, addr.client, addr.port ) <
-				  0 )
+		else
+		if ( snd_seq_connect_to( seq, port, addr.client, addr.port ) < 0 )
 		{
-			fprintf( stderr, "Error creating subscription for port %i:%i",
-					 addr.client, addr.port );
+			fprintf( stderr, "Error creating subscription for port %i:%i", addr.client, addr.port );
 			exit( 1 );
 		}
 	}
@@ -637,9 +628,8 @@ main ( int argc, char **argv )
 
 	if ( -1 == ( fd = open( device, O_RDWR ) ) )
 	{
-		fprintf( stderr, "Error opening event interface! (%s)\n",
-				 strerror( errno ) );
-		exit( 1 );
+		fprintf( stderr, "Error opening event interface! (%s)\n", strerror( errno ) );
+		exit(1);
 	}
 
 	init_keyboard();
@@ -662,29 +652,27 @@ main ( int argc, char **argv )
 	if ( -1 == open_database( database ) )
 	{
 		fprintf( stderr, "******Key database missing or invalid******\n"
-				 "Entering learning mode...\n"
-				 "Make sure your \"keyboard\" device is connected!\n" );
+						 "Entering learning mode...\n"
+						 "Make sure your \"keyboard\" device is connected!\n" );
 
 		learn_mode();
 	}
 
 	analyze_map( &keys, &mc_offset );
 
-	octave_min = ( mc_offset / 12 ) + 1;
+	octave_min = (mc_offset / 12) + 1;
 	octave_max = 9 - ( ( keys - mc_offset ) / 12 );
 
-	fprintf( stderr,
-			 "%i keys, middle C is %ith from the left, lowest MIDI octave == %i, highest, %i\n",
-			 keys, mc_offset + 1, octave_min, octave_max );
+	fprintf( stderr, "%i keys, middle C is %ith from the left, lowest MIDI octave == %i, highest, %i\n", keys, mc_offset + 1, octave_min, octave_max );
 
 	fprintf( stderr, "Waiting for events...\n" );
 
 	for ( ;; )
-	{
+	{	
 		int keyi, newstate;
 
 		keyi = get_keypress( &newstate );
-
+		
 		snd_seq_ev_clear( &ev );
 
 		if ( map[keyi].control )
@@ -695,11 +683,11 @@ main ( int argc, char **argv )
 				continue;
 
 			switch ( map[keyi].control )
-			{
-					/* All notes off */
-					snd_seq_ev_set_controller( &ev, channel, 123, 0 );
-					send_event( &ev );
-					snd_seq_ev_clear( &ev );
+			{	
+				/* All notes off */
+				snd_seq_ev_set_controller( &ev, channel, 123, 0 );
+				send_event( &ev );
+				snd_seq_ev_clear( &ev );
 
 				case CKEY_EXIT:
 					fprintf( stderr, "Exiting...\n" );
@@ -709,16 +697,13 @@ main ( int argc, char **argv )
 
 					clean_up();
 
-					exit( 0 );
+					exit(0);
 
 				case CKEY_MODE:
 
-					prog_mode =
-						prog_mode + 1 >
-						NUM_PROG_MODES - 1 ? 0 : prog_mode + 1;
-					fprintf( stderr, "Input mode change to %s\n",
-							 mode_names[prog_mode] );
-
+					prog_mode = prog_mode + 1 > NUM_PROG_MODES - 1 ? 0 : prog_mode + 1;
+					fprintf( stderr, "Input mode change to %s\n", mode_names[prog_mode] );
+				
 					update_leds();
 
 					break;
@@ -765,26 +750,26 @@ main ( int argc, char **argv )
 					break;
 
 				case CKEY_NUMERIC:
-				{
-					struct timeval tv;
-
-					gettimeofday( &tv, NULL );
-					/* Timeout in 5 secs */
-
-					if ( tv.tv_sec - timeout.tv_sec >= 5 )
 					{
-						prog_index = 0;
+						struct timeval tv;
+
+						gettimeofday( &tv, NULL );
+						/* Timeout in 5 secs */
+
+						if ( tv.tv_sec - timeout.tv_sec >= 5 )
+						{
+							prog_index = 0;
+						}
+
+						timeout = tv;
+
+						if ( prog_index == 0 )
+							printf( "INPUT %s #: ", mode_names[ prog_mode ] );
 					}
 
-					timeout = tv;
-
-					if ( prog_index == 0 )
-						printf( "INPUT %s #: ", mode_names[prog_mode] );
-				}
-
-					prog_buf[prog_index++] = 48 + map[keyi].number;
+					prog_buf[ prog_index++ ] = 48 + map[keyi].number;
 					printf( "%i", map[keyi].number );
-					fflush( stdout );
+					fflush(stdout);
 
 					if ( prog_index == 2 && prog_mode == CHANNEL )
 					{
@@ -793,14 +778,15 @@ main ( int argc, char **argv )
 
 						prog_buf[++prog_index] = '\0';
 						channel = atoi( prog_buf );
-
+						
 						channel = max( channel, 15 );
 
 						prog_index = 0;
 
 						printf( " ENTER\n" );
 					}
-					else if ( prog_index == 3 )
+					else
+					if ( prog_index == 3 )
 					{
 						prog_buf[++prog_index] = '\0';
 
@@ -811,17 +797,15 @@ main ( int argc, char **argv )
 
 								patch = max( patch, 127 );
 
-								snd_seq_ev_set_pgmchange( &ev, channel,
-														  patch );
+								snd_seq_ev_set_pgmchange( &ev, channel, patch );
 
 								break;
 							case BANK:
 								bank = atoi( prog_buf );
+								
+								bank = max ( bank, 127 );
 
-								bank = max( bank, 127 );
-
-								snd_seq_ev_set_controller( &ev, channel, 0,
-														   bank );
+								snd_seq_ev_set_controller( &ev, channel, 0, bank );
 								break;
 							default:
 								fprintf( stderr, "Internal error!\n" );
@@ -840,34 +824,36 @@ main ( int argc, char **argv )
 
 			continue;
 		}
-		else
-			switch ( map[keyi].ev_type )
-			{
-				case SND_SEQ_EVENT_CONTROLLER:
+		else		
+		switch ( map[keyi].ev_type )
+		{
+			case SND_SEQ_EVENT_CONTROLLER:
 
-					snd_seq_ev_set_controller( &ev, channel,
-											   map[keyi].number,
-											   newstate == DOWN ? 127 : 0 );
+				snd_seq_ev_set_controller( &ev, channel,
+											    map[keyi].number,
+											    newstate == DOWN ? 127 : 0 );
 
-					break;
+				break;
 
-				case SND_SEQ_EVENT_NOTE:
+			case SND_SEQ_EVENT_NOTE:
+			
+				if ( newstate == DOWN )
+					snd_seq_ev_set_noteon( &ev,	channel,
+										   map[keyi].number + ( 12 * octave ),
+							64 );
+				else
+					snd_seq_ev_set_noteoff( &ev, channel,
+										   map[keyi].number + ( 12 * octave ),
+							64 );
+				break;
 
-					if ( newstate == DOWN )
-						snd_seq_ev_set_noteon( &ev, channel,
-											   map[keyi].number +
-											   ( 12 * octave ), 64 );
-					else
-						snd_seq_ev_set_noteoff( &ev, channel,
-												map[keyi].number +
-												( 12 * octave ), 64 );
-					break;
-
-				default:
-					fprintf( stderr, "Key has invalid mapping!\n" );
-					break;
-			}
+			default:
+				fprintf( stderr,
+						 "Key has invalid mapping!\n" );
+				break;
+		}
 
 		send_event( &ev );
 	}
 }
+

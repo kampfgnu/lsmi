@@ -2,9 +2,9 @@
 LIBS=-lasound
 CFLAGS=-g -Wall -pedantic $(LIBS)
 
-.PHONY : clean all doc install
+.PHONY : clean all
 
-BINS=lsmi-monterey lsmi-joystick lsmi-mouse lsmi-keyhack 
+BINS=lsmi-monterey lsmi-joystick lsmi-mouse lsmi-keyhack lsmi-gamepad-toggle-cc
 
 all: $(BINS)
 
@@ -25,9 +25,7 @@ lsmi-mouse: lsmi-mouse.c $(OBJS)
 
 lsmi-keyhack: lsmi-keyhack.c $(OBJS)
 
-doc:
-	mup html < README.mu > README.html
-	mup < README.mu > README
+lsmi-gamepad-toggle-cc: lsmi-gamepad-toggle-cc.c $(OBJS)
 
 install: $(BINS)
 	install $(BINS) /usr/local/bin
