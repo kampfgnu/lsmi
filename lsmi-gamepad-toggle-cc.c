@@ -163,7 +163,7 @@ usage ( void )
 	"Options:\n\n"
 		" -h | --help                   Show this message\n"
 		" -d | --device specialfile     Event device to use (instead of event0)\n"
-		" -v | --verbose                Be verbose (show note events)\n"
+		" -v | --verbose                Be verbose (show cc events)\n"
 		" -c | --channel n              Initial MIDI channel\n"
 		" -p | --port client:port       Connect to ALSA Sequencer client on startup\n"					
 		" -k | --keydata file			Name file to read/write key mappings (instead of ~/.keydb)\n"
@@ -318,7 +318,6 @@ learn_mode ( void )
 	for ( ;; )
 	{
 		keyi = get_key();
-		printf( "CC message number to send: %i, USB button key: %i ", 13 + learn_note, keyi );
 		fflush(stdout);
 
 		if ( keyi == learn_firstkey )
@@ -327,7 +326,8 @@ learn_mode ( void )
 		if ( ! learn_firstkey )
 			learn_firstkey = keyi;
 		
-		map[keyi].control = 0;
+		printf( "CC message number to send: %i, USB button key: %i ", 13 + learn_note, keyi );
+		map[keyi].control = CKEY_NUMERIC;
 		map[keyi].ev_type = SND_SEQ_EVENT_CONTROLLER;
 		map[keyi].number  = 13 + learn_note++;
 		map[keyi].active = false;
@@ -417,7 +417,7 @@ main ( int argc, char **argv )
 		
 		snd_seq_ev_clear( &ev );
 
-		if ( map[keyi].control ) {
+		if ( map[keyi].control == CKEY_EXIT ) {
 			if ( newstate == UP )
 				continue;
 
